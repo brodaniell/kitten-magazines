@@ -1,6 +1,12 @@
+-- Global Variables
+local Drawing = Drawing
+local getgenv = getgenv
+
 if getgenv().swagware then
 	return
 end
+getgenv().update_loop_stepped_name = randomString(math.random(15, 35))
+getgenv().swagware = true
 
 -- Random Seed for tick()
 math.randomseed(tick())
@@ -12,13 +18,6 @@ local function randomString(length: number)
 	end
 	return str
 end
-
--- Global Variables
-local Drawing = Drawing
-local getgenv = getgenv
-getgenv().update_loop_stepped_name = randomString(math.random(15, 35))
-getgenv().swagware = true
-
 -- Player Service
 local Players = game:GetService("Players")
 -- Run Service
@@ -27,7 +26,6 @@ local RunService = game:GetService("RunService")
 local Teams = game:GetService("Teams")
 -- User Input Service
 local UserInputService = game:GetService("UserInputService")
-
 -- Internal Values
 local LocalPlayer = Players.LocalPlayer
 local Mouse = LocalPlayer:GetMouse()
