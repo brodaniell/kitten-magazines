@@ -5,7 +5,6 @@ local getgenv = getgenv
 if getgenv().swagware then
 	return
 end
-getgenv().update_loop_stepped_name = randomString(math.random(15, 35))
 getgenv().swagware = true
 
 -- Random Seed for tick()
@@ -18,6 +17,7 @@ local function randomString(length: number)
 	end
 	return str
 end
+getgenv().update_loop_stepped_name = randomString(math.random(15, 35))
 -- Player Service
 local Players = game:GetService("Players")
 -- Run Service
