@@ -1,4 +1,3 @@
-getgenv().debugMode = true
 -- Global Variables
 local Drawing = Drawing
 local getgenv = getgenv
@@ -492,27 +491,6 @@ end
 --#endregion
 
 --#region ESP
-local function createChams(character)
-	local chamsPlayer = {}
-	for _, v in pairs(character:GetChildren()) do
-		if v:IsA("BasePart") then
-			if table.find(CharacterParts, v.Name) then
-				local chams = Instance.new("BoxHandleAdornment", v)
-				chams.Adornee = v
-				chams.Visible = false
-				chams.AlwaysOnTop = false
-				chams.Color3 = Options.VisibleColor.Value
-				chams.Name = randomString(32)
-				chams.Size = v.Size + Vector3.new(0.02, 0.02, 0.02)
-				chams.ZIndex = 4
-				table.insert(chamsPlayer, chams)
-			end
-		end
-	end
-
-	ESPPlayers.Chams[Players:GetPlayerFromCharacter(character)] = chamsPlayer
-end
-
 local function createEsp(player)
    	local drawings = {Box = nil, Outline = nil}
 
@@ -545,17 +523,6 @@ local function removeEsp(player)
 			end
 		end
 		ESPPlayers.Box[player] = nil
-	end
-end
-
-local function removeChams(player)
-	if rawget(ESPPlayers.Chams, player) then
-		if ESPPlayers.Chams[player] then
-			for _, v in pairs(ESPPlayers.Chams[player]) do
-				v:Destroy()
-			end
-		end
-		ESPPlayers.Chams[player] = nil
 	end
 end
 
@@ -623,70 +590,21 @@ local function updateEsp(player, esp)
 		end
 	end
 end
-
-local function updateChams(player, tbl)
-	local character = player and player.Character
-	if not ESPPlayers.Chams[player] then
-		createChams(character)
-	end
-	if character and Toggles.Chams.Value then
-		for _, chams in pairs(tbl) do
-			if typeof(chams) == "Instance" and chams:IsA("BoxHandleAdornment") then
-				if sameTeam(character) then
-					if chams.Visible then
-						chams.Visible = false
-					end
-					continue
-				end
-				local cFrame = character:GetModelCFrame()
-				local _, visible = toViewportPoint(cFrame.Position)
-				local isAlive = hasHealth(character)
-				local playerHead = getCharacter():FindFirstChild("Head") or getCharacter():WaitForChild("Head", 1000)
-				local characterHead = character:FindFirstChild("Head") or character:WaitForChild("Head", 1000)
-				local canSee = nil
-				if playerHead and characterHead then
-					canSee = canHit(characterHead)
-				end
-				local toggle = Toggles.ESP.Value and Toggles.Chams.Value or false
-				chams.Visible = (visible and toggle or false)
-				if isAlive and toggle then
-					if canSee ~= nil then
-						chams.Color3 = (canSee and Options.VisibleColor.Value or Options.NotVisibleColor.Value)
-					else
-						chams.Color3 = Options.VisibleColor.Value
-					end
-					chams.Transparency = Options.FillOpacity.Value
-				else
-					chams.Visible = false
-				end
-			end
-		end
-	else
-		for _, v in pairs(tbl) do
-			v.Visible = false
-		end
-	end
-end
 --#endregion
 
 --#region Events
 for _, v in pairs(Players:GetPlayers()) do
     if v ~= LocalPlayer then
         createEsp(v)
-        createChams(v.Character)
     end
 end
 
 Players.PlayerAdded:Connect(function(player)
 	createEsp(player)
-	player.CharacterAdded:Connect(function(character)
-		createChams(character)
-	end)
 end)
 
 Players.PlayerRemoving:Connect(function(player)
 	removeEsp(player)
-	removeChams(player)
 end)
 
 UserInputService.InputBegan:Connect(function(input, _)
@@ -751,14 +669,6 @@ local function stepped()
 		for player, drawings in pairs(ESPPlayers.Box) do
 			if player and player ~= LocalPlayer then
 				updateEsp(player, drawings)
-			end
-		end
-	end
-
-	if ESPPlayers.Chams then
-		for player, tbl in pairs(ESPPlayers.Chams) do
-			if player and player ~= LocalPlayer then
-				updateChams(player, tbl)
 			end
 		end
 	end
