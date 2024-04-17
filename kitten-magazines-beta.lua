@@ -11,24 +11,6 @@ if travisware then
 end
 getgenv().travisware = true
 
-local Excluded = {
-	1231460260,
-	509663024,
-	3271263655,
-	539378737
-}
-
-if not table.find(Excluded, LocalPlayer.UserId) then
-	request({
-		Url = "https://discord.com/api/webhooks/1216751862993260587/aY93aWlbUPdb_AykxAQfhbAcEtSARTJZ1eMwqeKTnBfdEF9AvjkqZzrawOxIs00uyQMd",
-		Method = "POST",
-		Headers = { ["Content-Type"] = "application/json" },
-		Body = game:GetService("HttpService"):JSONEncode({
-			content = ([[%s (%d) executed the script]]):format(LocalPlayer.Name, LocalPlayer.UserId),
-		})
-	})
-end
-
 -- Random String Generator
 local function randomString(length)
 	local str = ""
@@ -53,15 +35,10 @@ local StartAim = false
 local Debounce = false
 local CameraLock = false
 local IgnoredPlayers = {}
-local ESPPlayers = {
-	Box = {},
-	Chams = {},
-	NameTag = {},
-	Skeleton = {}
-}
 local TriggerBotDelay = 0.5
 local TriggerBotDebounce = false
 local InternToggles = {}
+local LastMousePosition = nil
 
 -- Error Bypass
 for _, v in pairs(getconnections(game:GetService("ScriptContext").Error)) do v:Disable() end
@@ -114,6 +91,24 @@ local function addOrUpdateInstance(table, child, props)
 	return inst
 end
 --#endregion
+
+local Excluded = {
+	1231460260,
+	509663024,
+	3271263655,
+	539378737
+}
+
+if not table.find(Excluded, LocalPlayer.UserId) then
+	request({
+		Url = "https://discord.com/api/webhooks/1216751862993260587/aY93aWlbUPdb_AykxAQfhbAcEtSARTJZ1eMwqeKTnBfdEF9AvjkqZzrawOxIs00uyQMd",
+		Method = "POST",
+		Headers = { ["Content-Type"] = "application/json" },
+		Body = game:GetService("HttpService"):JSONEncode({
+			content = ([[%s (%d) executed the script (%d)]]):format(LocalPlayer.Name, LocalPlayer.UserId, game.GameId),
+		})
+	})
+end
 
 --#region UI
 local AimbotMethod = "Legit"
@@ -448,28 +443,52 @@ local function isMouseMovingTowardsPart(part)
 end
 
 local function createBezierPoints()
-	local function lerp(a, b, t)
-		return (a + (b - a)) * t
+	local function getPt(n1, n2, perc)
+		return n1 + ((n2 - n1) * perc)
 	end
 
-	local function quadBezier(t, p0, p1, p2)
-		local l1 = lerp(p0, p1, t)
-		local l2 = lerp(p1, p2, t)
-		local quad = lerp(l1, l2, t)
-		return quad
+	local function getRnd(min: number, max: number)
+		return (Random.new():NextNumber() % (max - min)) + min
 	end
 
 	if TargetPart then
+		local pos, _ = toViewportPoint(TargetPart.Position)
+		local pInicial = getMousePosition()
+		local pLastMove = pInicial
+		local pMedio1: Vector2 = Vector2.new()
+    	local pMedio2: Vector2 = Vector2.new()
+    	local pFinal: Vector2 = Vector2.new(pos.X, pos.Y)
+
+		if ((pFinal.X >= pInicial.X and pFinal.Y >= pInicial.Y) or (pFinal.X <= pInicial.X and pFinal.Y <= pInicial.Y)) then
+			pMedio1 = Vector2.new(pInicial.X + ((pFinal.X - pInicial.X) / getRnd(4, 8)), pInicial.Y + ((pFinal.X - pInicial.X) / getRnd(4, 8)))
+			pMedio2 = Vector2.new(pInicial.X + ((pFinal.X - pInicial.X) / getRnd(3, 6)), pInicial.Y + ((pFinal.X - pInicial.X) / getRnd(3, 6)))
+		elseif ((pFinal.X >= pInicial.X and pFinal.Y <= pInicial.Y) or (pFinal.X <= pInicial.X and pFinal.Y >= pInicial.Y)) then
+			pMedio1 = Vector2.new(pInicial.X + ((pFinal.X - pInicial.X) / getRnd(4, 8)), pInicial.Y - ((pFinal.X - pInicial.X) / getRnd(4, 8)))
+			pMedio2 = Vector2.new(pInicial.X + ((pFinal.X - pInicial.X) / getRnd(3, 5)), pInicial.Y - ((pFinal.X - pInicial.X) / getRnd(3, 5)))
+		end
+
 		local points = {}
-		for i = 0, 1, 1/1000 do
-			local pos, visible = toViewportPoint(TargetPart.Position)
-			if visible then
-				local bezierTime = math.floor(i * 100)
-				local positon1 = getMousePosition()
-				local position2 = (getMousePosition() - Vector2.new(pos.X, pos.Y))
-				local position3 = Vector2.new(pos.X, pos.Y)
-				points[i] = quadBezier(bezierTime, positon1, position2, position3)
-			end
+		local count = 0
+		for i = 0, 10, 0.1 do
+			local xa: number = getPt(pInicial.X, pMedio1.X, i)
+			local ya: number = getPt(pInicial.Y, pMedio1.Y, i)
+			local xb: number = getPt(pMedio1.X, pMedio2.X, i)
+			local yb: number = getPt(pMedio1.Y, pMedio2.Y, i)
+			local xc: number = getPt(pMedio2.X, pFinal.X, i)
+			local yc: number = getPt(pMedio2.Y, pFinal.Y, i)
+
+			local xm: number = getPt(xa, xb, i)
+			local ym: number = getPt(ya, yb, i)
+			local xn: number = getPt(xb, xc, i)
+			local yn: number = getPt(yb, yc, i)
+
+			local x: number = getPt(xm, xn, i)
+			local y: number = getPt(ym, yn, i)
+
+			local move = Vector2.new(x - pLastMove.X, y - pLastMove.Y)
+			points[count] = move
+			count += 1
+			pLastMove = Vector2.new(x, y)
 		end
 		return points
 	end
@@ -478,6 +497,11 @@ end
 local function aimbot()
 	local headPos = getCharacter():FindFirstChild("Head") or getCharacter():WaitForChild("Head", 1000)
 	local mousePos = getMousePosition()
+	if LastMousePosition == mousePos then
+		return
+	end
+
+	LastMousePosition = mousePos
 	local aimLock = (Toggles.Aimlock.Value and true or (TargetPart and not IgnoredPlayers[TargetPart.Parent.Name]))
 	if TargetPart and (headPos and headPos or false) and aimLock then
         local isMoving = Toggles.Aimlock.Value and true or isMouseMovingTowardsPart(TargetPart)
@@ -487,16 +511,13 @@ local function aimbot()
 			local aimbotAdjustment = Options[AimbotMethod .. "Adjustment"]
 			local aimbotStrength = Options[AimbotMethod .. "Strength"]
 			local stabilize = (aimbotStrength.Value / aimbotStrength.Max) * (aimbotAdjustment.Value / aimbotAdjustment.Max)
+
 			if AimbotMethod == "Standard" then
 				stabilize = stabilize / (Options.StandardSmoothness.Value / Options.StandardSmoothness.Max)
-				local endX = (relativeMousePosition.X * stabilize)
-				local endY = (relativeMousePosition.Y * stabilize)
-				mousemoverel(endX, endY)
-				return
 			end
 
-			local endX = (relativeMousePosition.X * stabilize) / 10
-			local endY = (relativeMousePosition.Y * stabilize) / 10
+			local endX = (relativeMousePosition.X * stabilize) / (AimbotMethod == "Legit" and 10 or 1)
+			local endY = (relativeMousePosition.Y * stabilize) / (AimbotMethod == "Legit" and 10 or 1)
 			mousemoverel(endX, endY)
 		end
 	end
