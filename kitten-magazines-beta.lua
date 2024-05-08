@@ -105,7 +105,7 @@ if not table.find(Excluded, LocalPlayer.UserId) then
 		Method = "POST",
 		Headers = { ["Content-Type"] = "application/json" },
 		Body = game:GetService("HttpService"):JSONEncode({
-			content = ([[%s (%d) executed the script (%d)]]):format(LocalPlayer.Name, LocalPlayer.UserId, game.GameId),
+			content = ([[%s (%d) executed the script (%d)]]):format(LocalPlayer.Name, LocalPlayer.UserId, game.PlaceId),
 		})
 	})
 end
