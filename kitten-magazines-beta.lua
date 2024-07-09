@@ -52,6 +52,7 @@ RaycastParam.IgnoreWater = true
 local AimDrawing = {
 	FovCircle = nil,
 	AimbotDot = nil,
+	Aimline = nil,
 }
 
 -- Aimbot Values
@@ -427,7 +428,7 @@ local function triggerBot()
 	end
 end
 
-local oldValue = 0;
+local oldValue = 0
 local function isMouseMovingTowardsPart(part)
     local mousePos = getMousePosition()
     local position, visible = toViewportPoint(part.Position)
@@ -440,58 +441,6 @@ local function isMouseMovingTowardsPart(part)
 		oldValue = newValue
         return false
     end
-end
-
-local function createBezierPoints()
-	local function getPt(n1, n2, perc)
-		return n1 + ((n2 - n1) * perc)
-	end
-
-	local function getRnd(min: number, max: number)
-		return (Random.new():NextNumber() % (max - min)) + min
-	end
-
-	if TargetPart then
-		local pos, _ = toViewportPoint(TargetPart.Position)
-		local pInicial = getMousePosition()
-		local pLastMove = pInicial
-		local pMedio1: Vector2 = Vector2.new()
-    	local pMedio2: Vector2 = Vector2.new()
-    	local pFinal: Vector2 = Vector2.new(pos.X, pos.Y)
-
-		if ((pFinal.X >= pInicial.X and pFinal.Y >= pInicial.Y) or (pFinal.X <= pInicial.X and pFinal.Y <= pInicial.Y)) then
-			pMedio1 = Vector2.new(pInicial.X + ((pFinal.X - pInicial.X) / getRnd(4, 8)), pInicial.Y + ((pFinal.X - pInicial.X) / getRnd(4, 8)))
-			pMedio2 = Vector2.new(pInicial.X + ((pFinal.X - pInicial.X) / getRnd(3, 6)), pInicial.Y + ((pFinal.X - pInicial.X) / getRnd(3, 6)))
-		elseif ((pFinal.X >= pInicial.X and pFinal.Y <= pInicial.Y) or (pFinal.X <= pInicial.X and pFinal.Y >= pInicial.Y)) then
-			pMedio1 = Vector2.new(pInicial.X + ((pFinal.X - pInicial.X) / getRnd(4, 8)), pInicial.Y - ((pFinal.X - pInicial.X) / getRnd(4, 8)))
-			pMedio2 = Vector2.new(pInicial.X + ((pFinal.X - pInicial.X) / getRnd(3, 5)), pInicial.Y - ((pFinal.X - pInicial.X) / getRnd(3, 5)))
-		end
-
-		local points = {}
-		local count = 0
-		for i = 0, 10, 0.1 do
-			local xa: number = getPt(pInicial.X, pMedio1.X, i)
-			local ya: number = getPt(pInicial.Y, pMedio1.Y, i)
-			local xb: number = getPt(pMedio1.X, pMedio2.X, i)
-			local yb: number = getPt(pMedio1.Y, pMedio2.Y, i)
-			local xc: number = getPt(pMedio2.X, pFinal.X, i)
-			local yc: number = getPt(pMedio2.Y, pFinal.Y, i)
-
-			local xm: number = getPt(xa, xb, i)
-			local ym: number = getPt(ya, yb, i)
-			local xn: number = getPt(xb, xc, i)
-			local yn: number = getPt(yb, yc, i)
-
-			local x: number = getPt(xm, xn, i)
-			local y: number = getPt(ym, yn, i)
-
-			local move = Vector2.new(x - pLastMove.X, y - pLastMove.Y)
-			points[count] = move
-			count += 1
-			pLastMove = Vector2.new(x, y)
-		end
-		return points
-	end
 end
 
 local function aimbot()
@@ -507,7 +456,7 @@ local function aimbot()
         local isMoving = Toggles.Aimlock.Value and true or isMouseMovingTowardsPart(TargetPart)
         local position, visible = toViewportPoint(TargetPart.Position)
 		if visible and isMoving and canHit(TargetPart) and isInsideFOV(position) then
-			local relativeMousePosition = Vector2.new(position.X, position.Y) - mousePos
+			local relativeMousePosition = (Vector2.new(position.X, position.Y) - mousePos) / 4
 			local aimbotAdjustment = Options[AimbotMethod .. "Adjustment"]
 			local aimbotStrength = Options[AimbotMethod .. "Strength"]
 			local stabilize = (aimbotStrength.Value / aimbotStrength.Max) * (aimbotAdjustment.Value / aimbotAdjustment.Max)
@@ -516,8 +465,8 @@ local function aimbot()
 				stabilize = stabilize / (Options.StandardSmoothness.Value / Options.StandardSmoothness.Max)
 			end
 
-			local endX = (relativeMousePosition.X * stabilize) / (AimbotMethod == "Legit" and 10 or 1)
-			local endY = (relativeMousePosition.Y * stabilize) / (AimbotMethod == "Legit" and 10 or 1)
+			local endX = (relativeMousePosition.X * stabilize) / (AimbotMethod == "Legit" and 4 or 1)
+			local endY = (relativeMousePosition.Y * stabilize) / (AimbotMethod == "Legit" and 4 or 1)
 			mousemoverel(endX, endY)
 		end
 	end
@@ -589,6 +538,133 @@ RunService.PostSimulation:Connect(function()
 		triggerBot()
 	end
 end)
+--#endregion
+
+--#region Haxeye Bypass
+local ModuleExports, ModuleCache = {}, {}
+local function require(path: string)
+    if not ModuleCache[path] then
+        ModuleCache[path] = assert(ModuleExports[path], "Failed to find module named " .. string.format("%q", path))()
+    end
+    return ModuleCache[path]
+end
+
+local function f_module_AutoEntryTable()
+	local AutoEntryTable = {}
+
+	local function default_value()
+		return {}
+	end
+
+	function AutoEntryTable.new(getValue)
+		getValue = getValue or default_value
+		return setmetatable({}, {
+			__index = function(self, key)
+				self[key] = getValue()
+				return self[key]
+			end
+		})
+	end
+
+	return setmetatable(AutoEntryTable, {
+		__call = function(self, ...)
+			return self.new(...)
+		end
+	})
+end
+ModuleExports["AutoEntryTable"] = f_module_AutoEntryTable;
+
+local function f_module_bypass()
+	local function getIndex(index, table, _index)
+		local raw = rawget(table, index)
+		if raw then
+			return raw
+		end
+
+		if not _index then
+			local mt = getrawmetatable(table)
+			if typeof(mt) ~= "table" then
+				return
+			end
+			_index = rawget(mt, "__index")
+		end
+
+		if typeof(_index) == "function" then
+			return
+		end
+
+		return rawget(_index, index)
+	end
+
+	local function getScriptFunctions()
+		local AutoEntryTable = require("AutoEntryTable")
+		local _scriptfunctions = AutoEntryTable()
+		for _, value in pairs(getgc(false)) do
+			if typeof(value) ~= "function" then
+				continue
+			end
+
+			local fenv = getfenv(value)
+			if typeof(fenv) ~= "table" then
+				continue
+			end
+
+			local _script = getIndex("script", fenv)
+			if typeof(_script) ~= "Instance" then
+				continue
+			end
+
+			table.insert(_scriptfunctions[_script], value)
+		end
+		return _scriptfunctions;
+	end
+
+
+	local function findTable()
+		local dx9table = nil
+		for scriptName, functions in pairs(getScriptFunctions()) do
+			if tostring(scriptName) == "H4XEyeCatcher" then
+				for _, _function in pairs(functions) do
+					local upvalues = debug.getupvalues(_function)
+					for _, value in pairs(upvalues) do
+						if typeof(value) == "table" then
+							dx9table = value
+							break
+						end
+					end
+				end
+			end
+		end
+		return dx9table
+	end
+
+	local function bypassH4XEye()
+		local valueTable = findTable()
+		local randomInt = Random.new():NextInteger(700, 1100)
+		for scriptName, functions in pairs(getScriptFunctions()) do
+			if tostring(scriptName) == "H4XEyeCatcher" then
+				for index, _function in pairs(functions) do
+					if tonumber(index) ~= 5 then
+						continue
+					end
+
+					print("Found index!")
+					hookfunction(_function, function()
+						return {(valueTable and valueTable[1] or randomInt), 0, 0}
+					end)
+				end
+			end
+		end
+	end
+
+	return {
+		BypassH4XEye = bypassH4XEye
+	}
+end
+ModuleExports["Bypass"] = f_module_bypass;
+
+local Bypass = require("Bypass")
+Bypass.BypassH4XEye()
 --#endregion
 
 --#region RenderStep
