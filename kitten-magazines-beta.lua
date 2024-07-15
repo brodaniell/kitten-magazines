@@ -1,50 +1,38 @@
--- Global Variables
-local Drawing = Drawing
-local getgenv = getgenv
-
 -- Player Service
-local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
+local Players = cloneref(game:GetService("Players"))
+local LocalPlayer: Player = Players.LocalPlayer
 
 if travisware then
 	return
 end
 getgenv().travisware = true
 
--- Random String Generator
-local function randomString(length)
-	local str = ""
-	for _ = 1, length do
-		str = str .. string.char(math.random(97, 122))
-	end
-	return str
-end
-local update_loop_stepped_name = randomString(math.random(15, 35))
--- Run Service
-local RunService = game:GetService("RunService")
--- Teams Service
-local Teams = game:GetService("Teams")
--- User Input Service
-local UserInputService = game:GetService("UserInputService")
+-- Services
+local RunService = cloneref(game:GetService("RunService"))
+local Teams = cloneref(game:GetService("Teams"))
+local UserInputService = cloneref(game:GetService("UserInputService"))
+local CoreGui = cloneref(game:GetService("CoreGui"))
+local HttpService = cloneref(game:GetService("HttpService"))
+
 -- Internal Values
-local Mouse = LocalPlayer:GetMouse()
-local Camera = workspace.CurrentCamera
-local DummyPart = Instance.new("Part")
-local IgnoredInstances = {}
-local StartAim = false
-local Debounce = false
-local CameraLock = false
-local IgnoredPlayers = {}
-local TriggerBotDelay = 0.5
-local TriggerBotDebounce = false
-local InternToggles = {}
-local LastMousePosition = nil
+local RandomString: string = HttpService:GenerateGUID()
+local Mouse: Mouse = LocalPlayer:GetMouse()
+local Camera: Camera = workspace.CurrentCamera
+local DummyPart: BasePart = Instance.new("Part")
+local IgnoredInstances: table = {}
+local StartAim: boolean = false
+local Debounce: boolean = false
+local CameraLock: boolean = false
+local IgnoredPlayers: table = {}
+local TriggerBotDelay: boolean = 0.5
+local TriggerBotDebounce: boolean = false
+local LastMousePosition: Vector2 = nil
 
 -- Error Bypass
-for _, v in pairs(getconnections(game:GetService("ScriptContext").Error)) do v:Disable() end
+for _, v in pairs(getconnections(cloneref(game:GetService("ScriptContext")).Error)) do v:Disable() end
 
 -- Raycast Blacklist
-local RaycastParam = RaycastParams.new()
+local RaycastParam: RaycastParams = RaycastParams.new()
 RaycastParam.FilterType = Enum.RaycastFilterType.Exclude
 RaycastParam.IgnoreWater = true
 
@@ -59,40 +47,70 @@ local AimDrawing = {
 local TargetPart = nil
 
 -- Character Parts
-local CharacterParts = { "Head", "Torso", "Left Arm", "Right Arm", "Left Leg", "Right Leg", "HumanoidRootPart",  }
+local CharacterParts: table = { "Head", "Torso", "Left Arm", "Right Arm", "Left Leg", "Right Leg", "HumanoidRootPart" }
+
+-- ESP Object
+local ESP: table = {
+	Chams = {}
+}
+
+--#region Utility
+local Utility: table = {
+	Connections = {}
+}
+
+do
+	function Utility:Connect(_conn, _func)
+		local conn = _conn:Connect(_func)
+		table.insert(Utility.Connections, conn)
+		return conn
+	end
+
+	function Utility:BindToRenderStep(name, prio, _func)
+		local fake_conn = {}
+		function fake_conn:Disconnect()
+			RunService:UnbindFromRenderStep(name)
+		end
+
+		RunService:BindToRenderStep(name, prio, _func)
+		return fake_conn
+	end
+end
+--#endregion
 
 --#region Drawing Lib
 Drawing.new("Square").Visible = false
 
 local function addOrUpdateInstance(table, child, props)
 	local function newDrawing(class_name)
-		return function(newProps)
-			local inst = Drawing.new(class_name)
-			for idx, val in pairs(newProps) do
-				if idx ~= "instance" then
-					inst[idx] = val
+		return function(newProps: table)
+			local instance = Drawing.new(class_name)
+			for i, v in pairs(newProps) do
+				if i ~= "instance" then
+					instance[i] = v
 				end
 			end
-			return inst
+			return instance
 		end
 	end
 
-	local inst = table[child]
-	if not inst then
+	local instance = table[child]
+	if not instance then
 		table[child] = newDrawing(props.instance)(props)
-		return inst
+		return instance
 	end
 
-	for idx, val in pairs(props) do
-		if idx ~= "instance" then
-			inst[idx] = val
+	for i, v in pairs(props) do
+		if i ~= "instance" then
+			instance[i] = v
 		end
 	end
 
-	return inst
+	return instance
 end
 --#endregion
 
+--#region Webhook
 local Excluded = {
 	1231460260,
 	509663024,
@@ -105,27 +123,28 @@ if not table.find(Excluded, LocalPlayer.UserId) then
 		Url = "https://discord.com/api/webhooks/1216751862993260587/aY93aWlbUPdb_AykxAQfhbAcEtSARTJZ1eMwqeKTnBfdEF9AvjkqZzrawOxIs00uyQMd",
 		Method = "POST",
 		Headers = { ["Content-Type"] = "application/json" },
-		Body = game:GetService("HttpService"):JSONEncode({
+		Body = HttpService:JSONEncode({
 			content = ([[%s (%d) executed the script (%d)]]):format(LocalPlayer.Name, LocalPlayer.UserId, game.PlaceId),
 		})
 	})
 end
+--#endregion
 
---#region UI
+--#region UI (Credits to Linoria, best UI ever made)
+local FakeToggles: table = {}
 local AimbotMethod = "Legit"
 local repo = "https://raw.githubusercontent.com/violin-suzutsuki/LinoriaLib/main/"
 local Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
 local ThemeManager = loadstring(game:HttpGet(repo .. "addons/ThemeManager.lua"))()
-local SaveManager =
-	loadstring(game:HttpGet("https://raw.githubusercontent.com/brodaniell/iniuria/main/SaveManager.lua"))()
+local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/brodaniell/iniuria/main/SaveManager.lua"))()
 local Window = Library:CreateWindow({
 	Title = "travisware | v1 | release",
 })
 
 local LegitTab = Window:AddTab("Aimbot")
 local LegitTabbox1 = LegitTab:AddLeftGroupbox("General")
-InternToggles["LegitAimbot"] = { Value = true, Type = "Toggle" }
-InternToggles["StandardAimbot"] = { Value = false, Type = "Toggle" }
+FakeToggles["LegitAimbot"] = { Value = true, Type = "Toggle" }
+FakeToggles["StandardAimbot"] = { Value = false, Type = "Toggle" }
 LegitTabbox1:AddDropdown("AimbotMethod", {
 	Values = {"Legit", "Standard"},
 	Default = "Legit",
@@ -134,12 +153,11 @@ LegitTabbox1:AddDropdown("AimbotMethod", {
 	Callback = function(value)
 		AimbotMethod = value
 		if value == "Legit" then
-			InternToggles.LegitAimbot.Value = true
-			InternToggles.StandardAimbot.Value = false
-			Toggles.Aimlock:SetValue(false)
+			FakeToggles.LegitAimbot.Value = true
+			FakeToggles.StandardAimbot.Value = false
 		else
-			InternToggles.LegitAimbot.Value = false
-			InternToggles.StandardAimbot.Value = true
+			FakeToggles.LegitAimbot.Value = false
+			FakeToggles.StandardAimbot.Value = true
 		end
 		Library:UpdateDependencyBoxes()
 	end
@@ -170,8 +188,8 @@ LegitDependence:AddToggle("LegitDotRadius", { Text = "Show Aim Dot" }):AddColorP
 })
 LegitDependence:AddSlider("LegitDotRadiusStuds", { Text = "Aim Dot Radius", Suffix = "px", Default = 5, Min = 1, Max = 5, Rounding = 0 })
 LegitDependence:SetupDependencies({
-	{ InternToggles.LegitAimbot, true },
-	{ InternToggles.StandardAimbot, false }
+	{ FakeToggles.LegitAimbot, true },
+	{ FakeToggles.StandardAimbot, false }
 })
 
 local StandardDependence = LegitTabbox1:AddDependencyBox()
@@ -180,8 +198,8 @@ StandardDependence:AddSlider("StandardStrength", { Text = "Aim Adjustment Streng
 StandardDependence:AddSlider("StandardSmoothness", { Text = "Smoothness", Suffix = "%", Default = 15, Min = 1, Max = 100, Rounding = 0 })
 StandardDependence:AddToggle("Aimlock", { Text = "Aimlock" })
 StandardDependence:SetupDependencies({
-	{ InternToggles.StandardAimbot, true },
-	{ InternToggles.LegitAimbot, false }
+	{ FakeToggles.StandardAimbot, true },
+	{ FakeToggles.LegitAimbot, false }
 })
 
 local LegitTabbox2 = LegitTab:AddRightGroupbox("Global Aimbot Settings")
@@ -192,7 +210,7 @@ LegitTabbox2:AddToggle("Camera", { Text = "Disable when using Camera" })
 local TriggerbotTab = Window:AddTab("Trigger Bot")
 local TriggerbotTabbox1 = TriggerbotTab:AddLeftGroupbox("General")
 TriggerbotTabbox1:AddToggle("TriggerBot", { Text = "Enabled" })
-TriggerbotTabbox1:AddInput("MyTextbox", {
+TriggerbotTabbox1:AddInput("TriggerBotBox", {
     Default = "0.5",
     Numeric = true,
     Finished = false,
@@ -232,7 +250,7 @@ local ThemesTabbox = SettingsTab:AddLeftGroupbox("Themes")
 ThemeManager:SetLibrary(Library)
 SaveManager:SetLibrary(Library)
 SaveManager:IgnoreThemeSettings()
-SaveManager:SetIgnoreIndexes({ "MenuKeybind", InternToggles })
+SaveManager:SetIgnoreIndexes({ "MenuKeybind", FakeToggles })
 ThemeManager:SetFolder("travisware")
 SaveManager:SetFolder("travisware")
 SaveManager:BuildConfigSection(SettingsTab)
@@ -268,9 +286,9 @@ local function getCharacters()
 	local characters = {}
 	for _, player in pairs(Players:GetPlayers()) do
 		local character = player.Character
-		if typeof(character) == 'Instance' and character:IsA("Model") then
+		if typeof(character) == "Instance" and character:IsA("Model") then
 			local humanoid = character:FindFirstChildWhichIsA("Humanoid")
-			if typeof(humanoid) == 'Instance' and humanoid:IsA("Humanoid") then
+			if typeof(humanoid) == "Instance" and humanoid:IsA("Humanoid") then
 				table.insert(characters, character)
 			end
 		end
@@ -332,12 +350,9 @@ local function sameTeam(character)
 end
 
 local function hasHealth(character)
-	if not character then
-		return false
-	end
-
+	if not character then return false end
 	local humanoid = character:FindFirstChildOfClass("Humanoid")
-	if character and humanoid then
+	if humanoid then
 		if humanoid.Health > 0 then
 			return true
 		end
@@ -346,10 +361,7 @@ local function hasHealth(character)
 end
 
 local function isInsideFOV(target)
-	return (
-		(target.X - AimDrawing.FovCircle.Position.X) ^ 2 + (target.Y - AimDrawing.FovCircle.Position.Y) ^ 2
-		<= AimDrawing.FovCircle.Radius ^ 2
-	)
+	return (target.X - AimDrawing.FovCircle.Position.X) ^ 2 + (target.Y - AimDrawing.FovCircle.Position.Y) ^ 2 <= AimDrawing.FovCircle.Radius ^ 2
 end
 
 local function isInAimbotDot(target)
@@ -370,7 +382,7 @@ local function getClosestCharacterFromMouse()
 
 		local hRP = char:FindFirstChild("HumanoidRootPart")
 		if hRP then
-			local position, _ = toViewportPoint(hRP.Position)
+			local position = toViewportPoint(hRP.Position)
 			local distance = (mousePos - Vector2.new(position.X, position.Y)).Magnitude
 			if distance > closest.Distance then
 				continue
@@ -390,7 +402,7 @@ local function getClosestPartFromMouse(character)
 				continue
 			end
 
-			local position, _ = toViewportPoint(parts.Position)
+			local position = toViewportPoint(parts.Position)
 			local distance = (mousePos - Vector2.new(position.X, position.Y)).Magnitude
 			if distance > closest.Distance then
 				continue
@@ -451,7 +463,7 @@ local function aimbot()
 	end
 
 	LastMousePosition = mousePos
-	local aimLock = (Toggles.Aimlock.Value and true or (TargetPart and not IgnoredPlayers[TargetPart.Parent.Name]))
+	local aimLock = ((AimbotMethod == "Legit" and false or true) or Toggles.Aimlock.Value and true or (TargetPart and not IgnoredPlayers[TargetPart.Parent.Name]))
 	if TargetPart and (headPos and headPos or false) and aimLock then
         local isMoving = Toggles.Aimlock.Value and true or isMouseMovingTowardsPart(TargetPart)
         local position, visible = toViewportPoint(TargetPart.Position)
@@ -476,7 +488,7 @@ local function removePlayersFromIgnore()
 	for playerName, character in pairs(IgnoredPlayers) do
 		if IgnoredPlayers[playerName] and (character and character:IsA("Model")) then
 			if TargetPart then
-				local position, _ = toViewportPoint(TargetPart.Position)
+				local position = toViewportPoint(TargetPart.Position)
 				if not isInAimbotDot(position) then
 					IgnoredPlayers[playerName] = nil
 				end
@@ -488,19 +500,23 @@ end
 --#endregion
 
 --#region Events
-UserInputService.InputBegan:Connect(function(input, _)
+Utility:Connect(UserInputService.InputBegan, function(input, _)
+	if UserInputService:GetFocusedTextBox() then
+		return
+	end
+
 	if Toggles.Camera.Value and input.UserInputType == Enum.UserInputType.MouseButton2 then
 		CameraLock = true
 	end
 end)
 
-UserInputService.InputEnded:Connect(function(input, _)
+Utility:Connect(UserInputService.InputEnded, function(input, _)
 	if Toggles.Camera.Value and input.UserInputType == Enum.UserInputType.MouseButton2 then
 		CameraLock = false
 	end
 end)
 
-Mouse.Move:Connect(function()
+Utility:Connect(Mouse.Move, function()
 	local target = Mouse.Target
 	if StartAim and target and target.Parent:FindFirstChild("Humanoid") then
         if not IgnoredPlayers[target.Parent.Name] then
@@ -533,14 +549,14 @@ local AimbotTask = coroutine.create(function()
 end)
 coroutine.resume(AimbotTask)
 
-RunService.PostSimulation:Connect(function()
+Utility:Connect(RunService.PostSimulation, function()
 	if Toggles.TriggerBot.Value then
 		triggerBot()
 	end
 end)
 --#endregion
 
---#region Haxeye Bypass
+--#region Haxeye Bypass (Credits to TechHog, he made it)
 local ModuleExports, ModuleCache = {}, {}
 local function require(path: string)
     if not ModuleCache[path] then
@@ -619,28 +635,8 @@ local function f_module_bypass()
 		return _scriptfunctions;
 	end
 
-
-	local function findTable()
-		local dx9table = nil
-		for scriptName, functions in pairs(getScriptFunctions()) do
-			if tostring(scriptName) == "H4XEyeCatcher" then
-				for _, _function in pairs(functions) do
-					local upvalues = debug.getupvalues(_function)
-					for _, value in pairs(upvalues) do
-						if typeof(value) == "table" then
-							dx9table = value
-							break
-						end
-					end
-				end
-			end
-		end
-		return dx9table
-	end
-
-	local function bypassH4XEye()
-		local valueTable = findTable()
-		local randomInt = Random.new():NextInteger(700, 1100)
+	local function findFunction()
+		local searchedFunction = nil
 		for scriptName, functions in pairs(getScriptFunctions()) do
 			if tostring(scriptName) == "H4XEyeCatcher" then
 				for index, _function in pairs(functions) do
@@ -648,13 +644,36 @@ local function f_module_bypass()
 						continue
 					end
 
-					print("Found index!")
-					hookfunction(_function, function()
-						return {(valueTable and valueTable[1] or randomInt), 0, 0}
-					end)
+					searchedFunction = _function
 				end
 			end
 		end
+		return searchedFunction
+	end
+
+	local function findTable()
+		local valueTable = nil
+		local _function = findFunction()
+		if not _function then return end
+		local upvalues = debug.getupvalues(_function)
+		for index, value in pairs(upvalues) do
+			print(index)
+			if typeof(value) == "table" then
+				valueTable = value
+			end
+		end
+		return valueTable
+	end
+
+	local function bypassH4XEye()
+		local valueTable = findTable()
+		local randomInt = Random.new():NextInteger(700, 1100)
+		local _function = findFunction()
+		if not _function then return end
+		print("Found function!")
+		hookfunction(_function, function()
+			return {(valueTable and valueTable[1] or randomInt), 0, 0}
+		end)
 	end
 
 	return {
@@ -665,6 +684,63 @@ ModuleExports["Bypass"] = f_module_bypass;
 
 local Bypass = require("Bypass")
 Bypass.BypassH4XEye()
+--#endregion
+
+--#region ESP (Credits to DendroESP for giving me examples)
+local Viewport
+
+local function setupViewport()
+	if Viewport then return end
+
+	local screenGui = Instance.new("ScreenGui", CoreGui)
+	screenGui.Name = "travisware"
+	screenGui.IgnoreGuiInset = true
+
+	Viewport = Instance.new("ViewportFrame", screenGui)
+	Viewport.Name = "traviswareESP"
+	Viewport.Size = UDim2.new(1, 0, 1, 0)
+	Viewport.Position = UDim2.new(0.5, 0, 0.5, 0)
+    Viewport.AnchorPoint = Vector2.new(0.5, 0.5)
+    Viewport.BackgroundTransparency = 1
+
+	screenGui.Enabled = true
+	screenGui.Parent = CoreGui
+end
+
+local function setupHighlight(character)
+	setupViewport()
+	if ESP.Chams[character.Name] then return end
+	local highlight = Instance.new("Highlight", Viewport)
+	highlight.Adornee = character
+	highlight.Parent = Viewport
+	ESP.Chams[character.Name] = highlight
+	return highlight
+end
+
+local function updateHighlight(character)
+	if not ESP.Chams[character.Name] then setupHighlight(character) end
+	local highlight = ESP.Chams[character.Name]
+	highlight.DepthMode = Enum.HighlightDepthMode.Occluded
+	highlight.OutlineTransparency = Options.OutlineOpacity.Value
+    highlight.FillTransparency = Options.FillOpacity.Value
+	highlight.Adornee = character
+	highlight.Parent = nil
+	highlight.Parent = Viewport
+end
+
+table.insert(Connections, Players.PlayerAdded:Connect(function(player)
+	player.CharacterAdded:Connect(function(character)
+		if character ~= getCharacter() then
+			updateHighlight(character)
+		end
+	end)
+end))
+
+for _, _players in pairs(Players:GetChildren()) do
+	if _players.Character ~= getCharacter() then
+		updateHighlight(_players.Character)
+	end
+end
 --#endregion
 
 --#region RenderStep
@@ -686,6 +762,11 @@ local function stepped()
 		Visible = Toggles.LegitDotRadius.Value,
 		instance = "Circle",
 	})
+
+	for character, _ in pairs(ESP.Chams) do
+		updateHighlight(character)
+	end
 end
+
+Utility:BindToRenderStep(RandomString, 199, stepped)
 --#endregion
-RunService:BindToRenderStep(update_loop_stepped_name, 199, stepped)
