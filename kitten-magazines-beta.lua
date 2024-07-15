@@ -556,7 +556,7 @@ Utility:Connect(RunService.PostSimulation, function()
 end)
 --#endregion
 
---#region Haxeye Bypass (Credits to TechHog, he made it)
+--#region Haxeye Bypass (Credits to TechHog for the auto entry table)
 local ModuleExports, ModuleCache = {}, {}
 local function require(path: string)
     if not ModuleCache[path] then
@@ -728,13 +728,13 @@ local function updateHighlight(character)
 	highlight.Parent = Viewport
 end
 
-table.insert(Connections, Players.PlayerAdded:Connect(function(player)
+Utility:Connect(Players.PlayerAdded, function(player)
 	player.CharacterAdded:Connect(function(character)
 		if character ~= getCharacter() then
 			updateHighlight(character)
 		end
 	end)
-end))
+end)
 
 for _, _players in pairs(Players:GetChildren()) do
 	if _players.Character ~= getCharacter() then
